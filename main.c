@@ -1,4 +1,4 @@
-#include "prescan_lib.h"
+#include "prescan.h"
 
 void ScanReference( int* reference, int* input, const unsigned int count) {
   reference[0] = 0;

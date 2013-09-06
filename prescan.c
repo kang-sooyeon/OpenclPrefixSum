@@ -1,4 +1,4 @@
-#include "prescan_lib.h"
+#include "prescan.h"
 
 int GROUP_SIZE = 256;
 unsigned int ElementsAllocated = 0;
