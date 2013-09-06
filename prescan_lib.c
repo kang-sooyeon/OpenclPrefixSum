@@ -102,7 +102,7 @@ int PreScan(
   unsigned int a = 0;
 
   int err = CL_SUCCESS;
-  err |= clSetKernelArg(ComputeKernels[k],  a++, sizeof(cl_mem), &output_data);  
+  err |= clSetKernelArg(ComputeKernels[k],  a++, sizeof(cl_mem), &output_data);
   err |= clSetKernelArg(ComputeKernels[k],  a++, sizeof(cl_mem), &input_data);
   err |= clSetKernelArg(ComputeKernels[k],  a++, shared,         0);
   err |= clSetKernelArg(ComputeKernels[k],  a++, sizeof(cl_int), &group_index);
