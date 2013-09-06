@@ -108,7 +108,7 @@ int CreatePartialSumBuffers(unsigned int count) {
   do {
     unsigned int group_count = (int)fmax(1, (int)ceil((float)element_count / (2.0f * group_size)));
     if (group_count > 1) {
-      size_t buffer_size = group_count * sizeof(float);
+      size_t buffer_size = group_count * sizeof(int);
       ScanPartialSums[level++] = clCreateBuffer(ComputeContext, CL_MEM_READ_WRITE, buffer_size, NULL, NULL);
     }
 
@@ -314,7 +314,7 @@ int UniformAdd(
   int err = CL_SUCCESS;
   err |= clSetKernelArg(ComputeKernels[k],  a++, sizeof(cl_mem), &output_data);
   err |= clSetKernelArg(ComputeKernels[k],  a++, sizeof(cl_mem), &partial_sums);
-  err |= clSetKernelArg(ComputeKernels[k],  a++, sizeof(float),  0);
+  err |= clSetKernelArg(ComputeKernels[k],  a++, sizeof(int),  0);
   err |= clSetKernelArg(ComputeKernels[k],  a++, sizeof(cl_int), &group_offset);
   err |= clSetKernelArg(ComputeKernels[k],  a++, sizeof(cl_int), &base_index);
   err |= clSetKernelArg(ComputeKernels[k],  a++, sizeof(cl_int), &n);
@@ -341,7 +341,7 @@ int PreScanBufferRecursive(
   int element_count,
   int level
 ) {
-  unsigned int group_size = max_group_size; 
+  unsigned int group_size = max_group_size;
   unsigned int group_count = (int)fmax(1.0f, (int)ceil((float)element_count / (2.0f * group_size)));
   unsigned int work_item_count = 0;
 
@@ -440,7 +440,7 @@ void PreScanBuffer(
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void ScanReference( float* reference, float* input, const unsigned int count) {
+void ScanReference( int* reference, int* input, const unsigned int count) {
   reference[0] = 0;
   double total_sum = 0;
 
@@ -465,8 +465,8 @@ int main(int argc, char **argv) {
   cl_mem           input_buffer;
 
   // Create some random input data on the host
-  float *float_data = (float*)calloc(count, sizeof(float));
-  for (i = 0; i < count; i++) float_data[i] = (float) i;//(int)(10 * ((float) rand() / (float) RAND_MAX));
+  int *int_data = (int*)calloc(count, sizeof(int));
+  for (i = 0; i < count; i++) int_data[i] = i;//(int)(10 * ((float) rand() / (float) RAND_MAX));
 
   // Connect to a CPU compute device
   err = clGetDeviceIDs(NULL, CL_DEVICE_TYPE_CPU, 1, &ComputeDeviceId, NULL);
@@ -564,7 +564,7 @@ int main(int argc, char **argv) {
   free(source);
 
   // Create the input buffer on the device
-  size_t buffer_size = sizeof(float) * count;
+  size_t buffer_size = sizeof(int) * count;
   input_buffer = clCreateBuffer(ComputeContext, CL_MEM_READ_WRITE, buffer_size, NULL, NULL);
   if (!input_buffer) {
     printf("Error: Failed to allocate input buffer on device!\n");
@@ -572,7 +572,7 @@ int main(int argc, char **argv) {
   }
 
   // Fill the input buffer with the host allocated random data
-  err = clEnqueueWriteBuffer(ComputeCommands, input_buffer, CL_TRUE, 0, buffer_size, float_data, 0, NULL, NULL);
+  err = clEnqueueWriteBuffer(ComputeCommands, input_buffer, CL_TRUE, 0, buffer_size, int_data, 0, NULL, NULL);
   if (err != CL_SUCCESS) {
     printf("Error: Failed to write to source array!\n");
     return EXIT_FAILURE;
@@ -585,7 +585,7 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
 
-  float* result = (float*)calloc(count, sizeof(float));
+  int* result = (int*)calloc(count, sizeof(int));
 
   err = clEnqueueWriteBuffer(ComputeCommands, output_buffer, CL_TRUE, 0, buffer_size, result, 0, NULL, NULL);
   if (err != CL_SUCCESS) {
@@ -612,15 +612,14 @@ int main(int argc, char **argv) {
   }
 
   // Verify the results are correct
-  float* reference = (float*) malloc( buffer_size);
-  ScanReference(reference, float_data, count);
+  int* reference = (int*) malloc( buffer_size);
+  ScanReference(reference, int_data, count);
 
   float error = 0.0f;
   float diff = 0.0f;
   for(i = 0; i < count; i++) {
     diff = fabs(reference[i] - result[i]);
     error = diff > error ? diff : error;
-    printf("%f ", result[i]);
   }
 
   if (error > MAX_ERROR) {
@@ -641,7 +640,7 @@ int main(int argc, char **argv) {
   clReleaseContext(ComputeContext);
 
   free(ComputeKernels);
-  free(float_data);
+  free(int_data);
   free(reference);
   free(result);
 
