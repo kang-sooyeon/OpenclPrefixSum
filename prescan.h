@@ -11,7 +11,7 @@
 #include <OpenCL/opencl.h>
 
 #define DEBUG_INFO      (0)
-int   GROUP_SIZE;
+extern int GROUP_SIZE;
 #define NUM_BANKS       (16)
 #define MAX_ERROR       (1e-7)
 #define SEPARATOR       ("----------------------------------------------------------------------\n")
@@ -20,14 +20,8 @@ int   GROUP_SIZE;
 
 static int count      = 16;
 
-cl_device_id            ComputeDeviceId;
-cl_command_queue        ComputeCommands;
-cl_context              ComputeContext;
-cl_program              ComputeProgram;
-cl_kernel*              ComputeKernels;
-cl_mem*                 ScanPartialSums;
-unsigned int            ElementsAllocated;
-unsigned int            LevelsAllocated;
+extern cl_kernel*              ComputeKernels;
+extern cl_program              ComputeProgram;
 
 enum KernelMethods {
   PRESCAN                             = 0,
@@ -49,9 +43,10 @@ static const unsigned int KernelCount = sizeof(KernelNames) / sizeof(char *);
 
 char * LoadProgramSourceFromFile(const char *filename);
 
-int CreatePartialSumBuffers(unsigned int count);
+int CreatePartialSumBuffers(unsigned int count, cl_context context);
 
 void PreScanBuffer(
+  cl_command_queue queue,
   cl_mem output_data,
   cl_mem input_data,
   unsigned int max_group_size,

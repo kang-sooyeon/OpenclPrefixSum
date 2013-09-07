@@ -4,6 +4,8 @@ int GROUP_SIZE = 256;
 unsigned int ElementsAllocated = 0;
 unsigned int LevelsAllocated = 0;
 cl_mem* ScanPartialSums = NULL;
+cl_kernel* ComputeKernels = NULL;
+cl_program ComputeProgram = NULL;
 
 char * LoadProgramSourceFromFile(const char *filename) {
   struct stat statbuf;
@@ -35,7 +37,7 @@ int floorPow2(int n) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-int CreatePartialSumBuffers(unsigned int count) {
+int CreatePartialSumBuffers(unsigned int count, cl_context context) {
   ElementsAllocated = count;
 
   unsigned int group_size = GROUP_SIZE;
@@ -61,7 +63,7 @@ int CreatePartialSumBuffers(unsigned int count) {
     unsigned int group_count = (int)fmax(1, (int)ceil((float)element_count / (2.0f * group_size)));
     if (group_count > 1) {
       size_t buffer_size = group_count * sizeof(int);
-      ScanPartialSums[level++] = clCreateBuffer(ComputeContext, CL_MEM_READ_WRITE, buffer_size, NULL, NULL);
+      ScanPartialSums[level++] = clCreateBuffer(context, CL_MEM_READ_WRITE, buffer_size, NULL, NULL);
     }
 
     element_count = group_count;
@@ -84,6 +86,7 @@ void ReleasePartialSums(void) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 int PreScan(
+  cl_command_queue queue,
   size_t *global,
   size_t *local,
   size_t shared,
@@ -114,7 +117,7 @@ int PreScan(
   }
 
   err = CL_SUCCESS;
-  err |= clEnqueueNDRangeKernel(ComputeCommands, ComputeKernels[k], 1, NULL, global, local, 0, NULL, NULL);
+  err |= clEnqueueNDRangeKernel(queue, ComputeKernels[k], 1, NULL, global, local, 0, NULL, NULL);
   if (err != CL_SUCCESS) {
     printf("Error: %s: Failed to execute kernel!\n", KernelNames[k]);
     return EXIT_FAILURE;
@@ -124,6 +127,7 @@ int PreScan(
 }
 
 int PreScanStoreSum(
+  cl_command_queue queue,
   size_t *global,
   size_t *local,
   size_t shared,
@@ -156,7 +160,7 @@ int PreScanStoreSum(
   }
 
   err = CL_SUCCESS;
-  err |= clEnqueueNDRangeKernel(ComputeCommands, ComputeKernels[k], 1, NULL, global, local, 0, NULL, NULL);
+  err |= clEnqueueNDRangeKernel(queue, ComputeKernels[k], 1, NULL, global, local, 0, NULL, NULL);
   if (err != CL_SUCCESS) {
     printf("Error: %s: Failed to execute kernel!\n", KernelNames[k]);
     return EXIT_FAILURE;
@@ -166,6 +170,7 @@ int PreScanStoreSum(
 }
 
 int PreScanStoreSumNonPowerOfTwo(
+  cl_command_queue queue,
   size_t *global,
   size_t *local,
   size_t shared,
@@ -198,7 +203,7 @@ int PreScanStoreSumNonPowerOfTwo(
   }
 
   err = CL_SUCCESS;
-  err |= clEnqueueNDRangeKernel(ComputeCommands, ComputeKernels[k], 1, NULL, global, local, 0, NULL, NULL);
+  err |= clEnqueueNDRangeKernel(queue, ComputeKernels[k], 1, NULL, global, local, 0, NULL, NULL);
   if (err != CL_SUCCESS) {
     printf("Error: %s: Failed to execute kernel!\n", KernelNames[k]);
     return EXIT_FAILURE;
@@ -208,6 +213,7 @@ int PreScanStoreSumNonPowerOfTwo(
 }
 
 int PreScanNonPowerOfTwo(
+  cl_command_queue queue,
   size_t *global,
   size_t *local,
   size_t shared,
@@ -238,7 +244,7 @@ int PreScanNonPowerOfTwo(
   }
 
   err = CL_SUCCESS;
-  err |= clEnqueueNDRangeKernel(ComputeCommands, ComputeKernels[k], 1, NULL, global, local, 0, NULL, NULL);
+  err |= clEnqueueNDRangeKernel(queue, ComputeKernels[k], 1, NULL, global, local, 0, NULL, NULL);
   if (err != CL_SUCCESS) {
     printf("Error: %s: Failed to execute kernel!\n", KernelNames[k]);
     return EXIT_FAILURE;
@@ -247,6 +253,7 @@ int PreScanNonPowerOfTwo(
 }
 
 int UniformAdd(
+  cl_command_queue queue,
   size_t *global,
   size_t *local,
   cl_mem output_data,
@@ -276,7 +283,7 @@ int UniformAdd(
   }
 
   err = CL_SUCCESS;
-  err |= clEnqueueNDRangeKernel(ComputeCommands, ComputeKernels[k], 1, NULL, global, local, 0, NULL, NULL);
+  err |= clEnqueueNDRangeKernel(queue, ComputeKernels[k], 1, NULL, global, local, 0, NULL, NULL);
   if (err != CL_SUCCESS) {
     printf("Error: %s: Failed to execute kernel!\n", KernelNames[k]);
     return EXIT_FAILURE;
@@ -286,6 +293,7 @@ int UniformAdd(
 }
 
 int PreScanBufferRecursive(
+  cl_command_queue queue,
   cl_mem output_data,
   cl_mem input_data,
   int max_group_size,
@@ -331,7 +339,7 @@ int PreScanBufferRecursive(
   int err = CL_SUCCESS;
 
   if (group_count > 1) {
-    err = PreScanStoreSum(global, local, shared, output_data, input_data, partial_sums, work_item_count * 2, 0, 0);
+    err = PreScanStoreSum(queue, global, local, shared, output_data, input_data, partial_sums, work_item_count * 2, 0, 0);
     if(err != CL_SUCCESS) return err;
 
     if (remainder) {
@@ -339,6 +347,7 @@ int PreScanBufferRecursive(
       size_t last_local[]  = { remaining_work_item_count, 1 };
 
       err = PreScanStoreSumNonPowerOfTwo(
+        queue,
         last_global, last_local, last_shared,
         output_data, input_data, partial_sums,
         last_group_element_count,
@@ -349,10 +358,10 @@ int PreScanBufferRecursive(
       if(err != CL_SUCCESS) return err;
     }
 
-    err = PreScanBufferRecursive(partial_sums, partial_sums, max_group_size, max_work_item_count, group_count, level + 1);
+    err = PreScanBufferRecursive(queue, partial_sums, partial_sums, max_group_size, max_work_item_count, group_count, level + 1);
     if(err != CL_SUCCESS) return err;
 
-    err = UniformAdd(global, local, output_data, partial_sums,  element_count - last_group_element_count, 0, 0);
+    err = UniformAdd(queue, global, local, output_data, partial_sums,  element_count - last_group_element_count, 0, 0);
     if(err != CL_SUCCESS) return err;
 
     if (remainder) {
@@ -360,6 +369,7 @@ int PreScanBufferRecursive(
       size_t last_local[]  = { remaining_work_item_count, 1 };
 
       err = UniformAdd(
+        queue,
         last_global, last_local,
         output_data, partial_sums,
         last_group_element_count,
@@ -370,10 +380,10 @@ int PreScanBufferRecursive(
       if(err != CL_SUCCESS) return err;
     }
   } else if (IsPowerOfTwo(element_count)) {
-    err = PreScan(global, local, shared, output_data, input_data, work_item_count * 2, 0, 0);
+    err = PreScan(queue, global, local, shared, output_data, input_data, work_item_count * 2, 0, 0);
     if(err != CL_SUCCESS) return err;
   } else {
-    err = PreScanNonPowerOfTwo(global, local, shared, output_data, input_data, element_count, 0, 0);
+    err = PreScanNonPowerOfTwo(queue, global, local, shared, output_data, input_data, element_count, 0, 0);
     if(err != CL_SUCCESS) return err;
   }
 
@@ -381,13 +391,14 @@ int PreScanBufferRecursive(
 }
 
 void PreScanBuffer(
+  cl_command_queue queue,
   cl_mem output_data,
   cl_mem input_data,
   unsigned int max_group_size,
   unsigned int max_work_item_count,
   unsigned int element_count
 ) {
-  PreScanBufferRecursive(output_data, input_data, max_group_size, max_work_item_count, element_count, 0);
+  PreScanBufferRecursive(queue, output_data, input_data, max_group_size, max_work_item_count, element_count, 0);
 }
 
 
