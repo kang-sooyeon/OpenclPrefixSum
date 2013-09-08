@@ -63,7 +63,7 @@ int CreatePartialSumBuffers(unsigned int count, cl_context context) {
     unsigned int group_count = (int)fmax(1, (int)ceil((float)element_count / (2.0f * group_size)));
     if (group_count > 1) {
       size_t buffer_size = group_count * sizeof(int);
-      ScanPartialSums[level++] = clCreateBuffer(context, CL_MEM_READ_WRITE, buffer_size, NULL, NULL);
+      ScanPartialSums[level++] = clCreateBuffer(context, CL_MEM_HOST_NO_ACCESS, buffer_size, NULL, NULL);
     }
 
     element_count = group_count;
@@ -325,7 +325,7 @@ int PreScanBufferRecursive(
 
     remaining_work_item_count = (remaining_work_item_count > max_work_item_count) ? max_work_item_count : remaining_work_item_count;
     unsigned int padding = (2 * remaining_work_item_count) / NUM_BANKS;
-    last_shared = sizeof(float) * (2 * remaining_work_item_count + padding);
+    last_shared = sizeof(int) * (2 * remaining_work_item_count + padding);
   }
 
   remaining_work_item_count = (remaining_work_item_count > max_work_item_count) ? max_work_item_count : remaining_work_item_count;
@@ -333,7 +333,7 @@ int PreScanBufferRecursive(
   size_t local[]  = { work_item_count, 1 };
 
   unsigned int padding = element_count_per_group / NUM_BANKS;
-  size_t shared = sizeof(float) * (element_count_per_group + padding);
+  size_t shared = sizeof(int) * (element_count_per_group + padding);
 
   cl_mem partial_sums = ScanPartialSums[level];
   int err = CL_SUCCESS;
