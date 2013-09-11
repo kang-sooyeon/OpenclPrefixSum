@@ -41,7 +41,7 @@ static const char* KernelNames[] = {
 
 static const unsigned int KernelCount = sizeof(KernelNames) / sizeof(char *);
 
-char * LoadProgramSourceFromFile(const char *filename);
+unsigned char * LoadProgramSourceFromFile(const char *filename);
 
 int CreatePartialSumBuffers(unsigned int count, cl_context context);
 

@@ -7,16 +7,16 @@ cl_mem* ScanPartialSums = NULL;
 cl_kernel* ComputeKernels = NULL;
 cl_program ComputeProgram = NULL;
 
-char * LoadProgramSourceFromFile(const char *filename) {
+unsigned char * LoadProgramSourceFromFile(const char *filename) {
   struct stat statbuf;
   FILE        *fh;
-  char        *source;
+  unsigned char *source;
 
   fh = fopen(filename, "r");
   if (fh == 0) return 0;
 
   stat(filename, &statbuf);
-  source = (char *) malloc(statbuf.st_size + 1);
+  source = (unsigned char *) malloc(statbuf.st_size + 1);
   fread(source, statbuf.st_size, 1, fh);
   source[statbuf.st_size] = '\0';
 
