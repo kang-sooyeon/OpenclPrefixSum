@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define MEMORY_BANK_COUNT       (128)  // Adjust to your architecture
-#define LOG2_MEMORY_BANK_COUNT   (7)  // Set to log2(MEMORY_BANK_COUNT)
+#define MEMORY_BANK_COUNT       (32)  // Adjust to your architecture
+#define LOG2_MEMORY_BANK_COUNT   (5)  // Set to log2(MEMORY_BANK_COUNT)
 #define ELIMINATE_CONFLICTS      (0)  // Enable for slow address calculation, but zero bank conflicts
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
