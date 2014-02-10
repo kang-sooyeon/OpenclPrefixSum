@@ -43,7 +43,7 @@ static const unsigned int KernelCount = sizeof(KernelNames) / sizeof(char *);
 
 char * LoadProgramSourceFromFile(const char *filename);
 
-int CreatePartialSumBuffers(unsigned int count, cl_context context);
+int CreatePartialSumBuffers(unsigned int count, cl_context context, size_t unit_size);
 
 void PreScanBuffer(
   cl_command_queue queue,
@@ -51,7 +51,8 @@ void PreScanBuffer(
   cl_mem input_data,
   unsigned int max_group_size,
   unsigned int max_work_item_count,
-  unsigned int element_count
+  unsigned int element_count,
+  size_t unit_size
 );
 
 void ReleasePartialSums();

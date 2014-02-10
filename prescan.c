@@ -37,7 +37,7 @@ int floorPow2(int n) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-int CreatePartialSumBuffers(unsigned int count, cl_context context) {
+int CreatePartialSumBuffers(unsigned int count, cl_context context, size_t unit_size) {
   ElementsAllocated = count;
 
   unsigned int group_size = GROUP_SIZE;
@@ -62,7 +62,7 @@ int CreatePartialSumBuffers(unsigned int count, cl_context context) {
   do {
     unsigned int group_count = (int)fmax(1, (int)ceil((float)element_count / (2.0f * group_size)));
     if (group_count > 1) {
-      size_t buffer_size = group_count * sizeof(int);
+      size_t buffer_size = group_count * unit_size;
       ScanPartialSums[level++] = clCreateBuffer(context, CL_MEM_HOST_NO_ACCESS, buffer_size, NULL, NULL);
     }
 
@@ -260,7 +260,8 @@ int UniformAdd(
   cl_mem partial_sums,
   unsigned int n,
   unsigned int group_offset,
-  unsigned int base_index
+  unsigned int base_index,
+  size_t unit_size
 ) {
 #if DEBUG_INFO
   printf("UniformAdd: Global[%4d] Local[%4d] BlockOffset[%4d] BaseIndex[%4d] Entries[%d]\n",
@@ -273,7 +274,7 @@ int UniformAdd(
   int err = CL_SUCCESS;
   err |= clSetKernelArg(ComputeKernels[k],  a++, sizeof(cl_mem), &output_data);
   err |= clSetKernelArg(ComputeKernels[k],  a++, sizeof(cl_mem), &partial_sums);
-  err |= clSetKernelArg(ComputeKernels[k],  a++, sizeof(int),  0);
+  err |= clSetKernelArg(ComputeKernels[k],  a++, unit_size,  0);
   err |= clSetKernelArg(ComputeKernels[k],  a++, sizeof(cl_int), &group_offset);
   err |= clSetKernelArg(ComputeKernels[k],  a++, sizeof(cl_int), &base_index);
   err |= clSetKernelArg(ComputeKernels[k],  a++, sizeof(cl_int), &n);
@@ -299,7 +300,8 @@ int PreScanBufferRecursive(
   int max_group_size,
   int max_work_item_count,
   int element_count,
-  int level
+  int level,
+  size_t unit_size
 ) {
   unsigned int group_size = max_group_size;
   unsigned int group_count = (int)fmax(1.0f, (int)ceil((float)element_count / (2.0f * group_size)));
@@ -325,7 +327,7 @@ int PreScanBufferRecursive(
 
     remaining_work_item_count = (remaining_work_item_count > max_work_item_count) ? max_work_item_count : remaining_work_item_count;
     unsigned int padding = (2 * remaining_work_item_count) / NUM_BANKS;
-    last_shared = sizeof(int) * (2 * remaining_work_item_count + padding);
+    last_shared = unit_size * (2 * remaining_work_item_count + padding);
   }
 
   remaining_work_item_count = (remaining_work_item_count > max_work_item_count) ? max_work_item_count : remaining_work_item_count;
@@ -333,7 +335,7 @@ int PreScanBufferRecursive(
   size_t local[]  = { work_item_count, 1 };
 
   unsigned int padding = element_count_per_group / NUM_BANKS;
-  size_t shared = sizeof(int) * (element_count_per_group + padding);
+  size_t shared = unit_size * (element_count_per_group + padding);
 
   cl_mem partial_sums = ScanPartialSums[level];
   int err = CL_SUCCESS;
@@ -358,10 +360,10 @@ int PreScanBufferRecursive(
       if(err != CL_SUCCESS) return err;
     }
 
-    err = PreScanBufferRecursive(queue, partial_sums, partial_sums, max_group_size, max_work_item_count, group_count, level + 1);
+    err = PreScanBufferRecursive(queue, partial_sums, partial_sums, max_group_size, max_work_item_count, group_count, level + 1, unit_size);
     if(err != CL_SUCCESS) return err;
 
-    err = UniformAdd(queue, global, local, output_data, partial_sums,  element_count - last_group_element_count, 0, 0);
+    err = UniformAdd(queue, global, local, output_data, partial_sums,  element_count - last_group_element_count, 0, 0, unit_size);
     if(err != CL_SUCCESS) return err;
 
     if (remainder) {
@@ -374,7 +376,8 @@ int PreScanBufferRecursive(
         output_data, partial_sums,
         last_group_element_count,
         group_count - 1,
-        element_count - last_group_element_count
+        element_count - last_group_element_count,
+        unit_size
       );
 
       if(err != CL_SUCCESS) return err;
@@ -396,9 +399,10 @@ void PreScanBuffer(
   cl_mem input_data,
   unsigned int max_group_size,
   unsigned int max_work_item_count,
-  unsigned int element_count
+  unsigned int element_count,
+  size_t unit_size
 ) {
-  PreScanBufferRecursive(queue, output_data, input_data, max_group_size, max_work_item_count, element_count, 0);
+  PreScanBufferRecursive(queue, output_data, input_data, max_group_size, max_work_item_count, element_count, 0, unit_size);
 }
 
 
